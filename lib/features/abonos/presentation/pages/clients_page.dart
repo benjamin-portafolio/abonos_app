@@ -195,7 +195,7 @@ class _ClientsPageState extends State<ClientsPage> {
               TextField(
                 controller: _searchController,
                 decoration: const InputDecoration(
-                  labelText: 'Buscar por id o nombre',
+                  labelText: 'Buscar por id o nombres',
                   prefixIcon: Icon(Icons.search),
                   border: OutlineInputBorder(),
                 ),
