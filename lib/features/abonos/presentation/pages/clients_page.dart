@@ -13,13 +13,10 @@ class ClientsPage extends StatefulWidget {
 
 class _ClientsPageState extends State<ClientsPage> {
   final ClientRepository _repository = SqfliteClientRepository();
-  final TextEditingController _idController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
   List<Client> _clients = [];
   String _searchQuery = '';
-  String? _editingId;
   bool _isLoading = true;
 
   @override
@@ -30,8 +27,6 @@ class _ClientsPageState extends State<ClientsPage> {
 
   @override
   void dispose() {
-    _idController.dispose();
-    _nameController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -42,9 +37,11 @@ class _ClientsPageState extends State<ClientsPage> {
     }
     final query = _searchQuery.trim().toLowerCase();
     return _clients
-        .where((client) =>
-            client.id.toLowerCase().contains(query) ||
-            client.name.toLowerCase().contains(query))
+        .where(
+          (client) =>
+              client.id.toLowerCase().contains(query) ||
+              client.name.toLowerCase().contains(query),
+        )
         .toList();
   }
 
@@ -74,93 +71,183 @@ class _ClientsPageState extends State<ClientsPage> {
     }
   }
 
-  void _setEditing(Client client) {
-    setState(() {
-      _editingId = client.id;
-      _idController.text = client.id;
-      _nameController.text = client.name;
-    });
-  }
-
-  void _resetForm() {
-    setState(() {
-      _editingId = null;
-      _idController.clear();
-      _nameController.clear();
-    });
-  }
-
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String> _nextClientId() async {
+    final allClients = await _repository.getAll(includeDeleted: true);
+    var maxId = 0;
+
+    for (final client in allClients) {
+      final parsedId = int.tryParse(client.id);
+      if (parsedId != null && parsedId > maxId) {
+        maxId = parsedId;
+      }
+    }
+
+    return (maxId + 1).toString();
+  }
+
+  Future<void> _openCreateClientModal() async {
+    String nextId;
+    try {
+      nextId = await _nextClientId();
+    } catch (_) {
+      _showMessage('No se pudo preparar el alta del cliente.');
+      return;
+    }
+
+    await _openClientModal(
+      title: 'Nuevo cliente',
+      actionLabel: 'Agregar',
+      clientId: nextId,
     );
   }
 
-  Future<void> _saveClient() async {
-    final id = _idController.text.trim();
-    final name = _nameController.text.trim();
-
-    if (id.isEmpty || name.isEmpty) {
-      _showMessage('Completa el id y el nombre.');
-      return;
-    }
-
-    if (_editingId == null) {
-      final allClients = await _repository.getAll(includeDeleted: true);
-      final exists = allClients.any((client) => client.id == id);
-      if (exists) {
-        _showMessage('El id ya existe.');
-        return;
-      }
-
-      try {
-        await _repository.add(Client(id: id, name: name));
-        _resetForm();
-        await _loadClients();
-      } catch (_) {
-        _showMessage('No se pudo guardar el cliente.');
-      }
-      return;
-    }
-
-    final current = await _repository.getById(_editingId!);
-    if (current == null) {
-      _showMessage('El cliente ya no existe.');
-      _resetForm();
-      await _loadClients();
-      return;
-    }
-
-    final updated = current.copyWith(
-      name: name,
-      updatedAt: DateTime.now(),
+  Future<void> _openEditClientModal(Client client) async {
+    await _openClientModal(
+      title: 'Editar cliente',
+      actionLabel: 'Guardar cambios',
+      clientId: client.id,
+      initialName: client.name,
+      editingClientId: client.id,
     );
-    try {
-      await _repository.update(updated);
-      _resetForm();
+  }
+
+  Future<void> _openClientModal({
+    required String title,
+    required String actionLabel,
+    required String clientId,
+    String initialName = '',
+    String? editingClientId,
+  }) async {
+    final nameController = TextEditingController(text: initialName);
+    var isSaving = false;
+
+    final didSave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> submit() async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) {
+                _showMessage('Completa el nombre del cliente.');
+                return;
+              }
+
+              setDialogState(() {
+                isSaving = true;
+              });
+
+              try {
+                if (editingClientId == null) {
+                  await _repository.add(Client(id: clientId, name: name));
+                } else {
+                  final current = await _repository.getById(editingClientId);
+                  if (current == null) {
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(false);
+                    }
+                    _showMessage('El cliente ya no existe.');
+                    return;
+                  }
+
+                  final updated = current.copyWith(
+                    name: name,
+                    updatedAt: DateTime.now(),
+                  );
+                  await _repository.update(updated);
+                }
+
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop(true);
+                }
+              } catch (_) {
+                setDialogState(() {
+                  isSaving = false;
+                });
+                _showMessage(
+                  editingClientId == null
+                      ? 'No se pudo guardar el cliente.'
+                      : 'No se pudo actualizar el cliente.',
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Id asignado: $clientId'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameController,
+                    enabled: !isSaving,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre',
+                      border: OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!isSaving) {
+                        submit();
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isSaving
+                          ? null
+                          : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: isSaving ? null : submit,
+                  child: Text(actionLabel),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    nameController.dispose();
+
+    if (didSave == true) {
       await _loadClients();
-    } catch (_) {
-      _showMessage('No se pudo actualizar el cliente.');
     }
   }
 
   Future<void> _deleteClient(Client client) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar cliente'),
-        content: Text('Eliminar a ${client.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Eliminar cliente'),
+            content: Text('Eliminar a ${client.name}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Eliminar'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
     );
 
     if (shouldDelete != true) {
@@ -169,9 +256,6 @@ class _ClientsPageState extends State<ClientsPage> {
 
     try {
       await _repository.delete(client.id);
-      if (_editingId == client.id) {
-        _resetForm();
-      }
       await _loadClients();
     } catch (_) {
       _showMessage('No se pudo eliminar el cliente.');
@@ -181,127 +265,77 @@ class _ClientsPageState extends State<ClientsPage> {
   @override
   Widget build(BuildContext context) {
     final clients = _visibleClients;
-    final isEditing = _editingId != null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Clientes'),
-      ),
+      appBar: AppBar(title: const Text('Clientes')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  labelText: 'Buscar por id o nombres',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              Card(
-                elevation: 0,
-                color: Theme.of(context).colorScheme.surface,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isEditing ? 'Editar cliente' : 'Nuevo cliente',
-                        style: Theme.of(context).textTheme.titleMedium,
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar por id o nombres',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _idController,
-                              enabled: !isEditing,
-                              decoration: const InputDecoration(
-                                labelText: 'Id',
-                                border: OutlineInputBorder(),
-                              ),
-                              textInputAction: TextInputAction.next,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Nombre',
-                                border: OutlineInputBorder(),
-                              ),
-                              textInputAction: TextInputAction.done,
-                              onSubmitted: (_) => _saveClient(),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton(
-                            onPressed: _saveClient,
-                            child: Text(isEditing ? 'Guardar cambios' : 'Agregar'),
-                          ),
-                          OutlinedButton(
-                            onPressed: _resetForm,
-                            child: const Text('Limpiar'),
-                          ),
-                        ],
-                      ),
-                    ],
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  IconButton.filled(
+                    tooltip: 'Agregar cliente',
+                    onPressed: _openCreateClientModal,
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : clients.isEmpty
+                child:
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : clients.isEmpty
                         ? const Center(
-                            child: Text('No hay clientes para mostrar.'),
-                          )
+                          child: Text('No hay clientes para mostrar.'),
+                        )
                         : ListView.separated(
-                            itemCount: clients.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final client = clients[index];
-                              return Card(
-                                child: ListTile(
-                                  title: Text('${client.id} - ${client.name}'),
-                                  trailing: Wrap(
-                                    spacing: 8,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Editar',
-                                        icon: const Icon(Icons.edit_outlined),
-                                        onPressed: () => _setEditing(client),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Eliminar',
-                                        icon: const Icon(Icons.delete_outline),
-                                        onPressed: () => _deleteClient(client),
-                                      ),
-                                    ],
-                                  ),
+                          itemCount: clients.length,
+                          separatorBuilder:
+                              (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final client = clients[index];
+                            return Card(
+                              child: ListTile(
+                                title: Text('${client.id} - ${client.name}'),
+                                trailing: Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Editar',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed:
+                                          () => _openEditClientModal(client),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Eliminar',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () => _deleteClient(client),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            );
+                          },
+                        ),
               ),
             ],
           ),
