@@ -14,6 +14,7 @@ class AbonosApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const ClientsPage(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

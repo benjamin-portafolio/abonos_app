@@ -1,22 +1,22 @@
-import 'package:abonos_app/features/abonos/domain/entities/client.dart';
+import 'package:abonos_app/features/abonos/domain/entities/loan_payment.dart';
 
-class ClientModel extends Client {
-  ClientModel({
+class LoanPaymentModel extends LoanPayment {
+  LoanPaymentModel({
     required super.id,
-    required super.name,
-    required super.prestamoActivo,
-    super.communityId,
+    required super.date,
+    required super.loanId,
+    required super.amount,
     required super.createdAt,
     required super.updatedAt,
     super.deletedAt,
   });
 
-  factory ClientModel.fromMap(Map<String, Object?> map) {
-    return ClientModel(
+  factory LoanPaymentModel.fromMap(Map<String, Object?> map) {
+    return LoanPaymentModel(
       id: map['id'] as String,
-      name: map['nombre'] as String,
-      prestamoActivo: ((map['prestamo_activo'] as int?) ?? 0) == 1,
-      communityId: map['id_comunidad'] as String?,
+      date: DateTime.parse(map['fecha'] as String),
+      loanId: map['id_prestamo'] as String,
+      amount: (map['cantidad'] as num).toDouble(),
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       deletedAt:
@@ -29,9 +29,9 @@ class ClientModel extends Client {
   Map<String, Object?> toMap() {
     return {
       'id': id,
-      'nombre': name,
-      'prestamo_activo': prestamoActivo ? 1 : 0,
-      'id_comunidad': communityId,
+      'fecha': date.toIso8601String(),
+      'id_prestamo': loanId,
+      'cantidad': amount,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'deleted_at': deletedAt?.toIso8601String(),

@@ -1,18 +1,22 @@
 import 'package:abonos_app/core/entities/auditable_entity.dart';
 
-class Client extends AuditableEntity {
+class Product extends AuditableEntity {
   static const _unset = Object();
 
   final String id;
   final String name;
-  final bool prestamoActivo;
-  final String? communityId;
+  final double price;
+  final double? originalPrice;
+  final int stock;
+  final String? categoryId;
 
-  Client({
+  Product({
     required this.id,
     required this.name,
-    this.prestamoActivo = false,
-    this.communityId,
+    required this.price,
+    this.originalPrice,
+    this.stock = 0,
+    this.categoryId,
     DateTime? createdAt,
     DateTime? updatedAt,
     super.deletedAt,
@@ -21,23 +25,30 @@ class Client extends AuditableEntity {
          updatedAt: updatedAt ?? DateTime.now(),
        );
 
-  Client copyWith({
+  Product copyWith({
     String? id,
     String? name,
-    bool? prestamoActivo,
-    Object? communityId = _unset,
+    double? price,
+    Object? originalPrice = _unset,
+    int? stock,
+    Object? categoryId = _unset,
     DateTime? createdAt,
     DateTime? updatedAt,
     Object? deletedAt = _unset,
   }) {
-    return Client(
+    return Product(
       id: id ?? this.id,
       name: name ?? this.name,
-      prestamoActivo: prestamoActivo ?? this.prestamoActivo,
-      communityId:
-          identical(communityId, _unset)
-              ? this.communityId
-              : communityId as String?,
+      price: price ?? this.price,
+      originalPrice:
+          identical(originalPrice, _unset)
+              ? this.originalPrice
+              : originalPrice as double?,
+      stock: stock ?? this.stock,
+      categoryId:
+          identical(categoryId, _unset)
+              ? this.categoryId
+              : categoryId as String?,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt:

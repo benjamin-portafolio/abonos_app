@@ -1,22 +1,26 @@
-import 'package:abonos_app/features/abonos/domain/entities/client.dart';
+import 'package:abonos_app/features/abonos/domain/entities/product.dart';
 
-class ClientModel extends Client {
-  ClientModel({
+class ProductModel extends Product {
+  ProductModel({
     required super.id,
     required super.name,
-    required super.prestamoActivo,
-    super.communityId,
+    required super.price,
+    super.originalPrice,
+    required super.stock,
+    super.categoryId,
     required super.createdAt,
     required super.updatedAt,
     super.deletedAt,
   });
 
-  factory ClientModel.fromMap(Map<String, Object?> map) {
-    return ClientModel(
+  factory ProductModel.fromMap(Map<String, Object?> map) {
+    return ProductModel(
       id: map['id'] as String,
       name: map['nombre'] as String,
-      prestamoActivo: ((map['prestamo_activo'] as int?) ?? 0) == 1,
-      communityId: map['id_comunidad'] as String?,
+      price: (map['precio'] as num).toDouble(),
+      originalPrice: (map['precio_original'] as num?)?.toDouble(),
+      stock: (map['existencia'] as int?) ?? 0,
+      categoryId: map['id_categoria'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       deletedAt:
@@ -30,8 +34,10 @@ class ClientModel extends Client {
     return {
       'id': id,
       'nombre': name,
-      'prestamo_activo': prestamoActivo ? 1 : 0,
-      'id_comunidad': communityId,
+      'precio': price,
+      'precio_original': originalPrice,
+      'existencia': stock,
+      'id_categoria': categoryId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'deleted_at': deletedAt?.toIso8601String(),

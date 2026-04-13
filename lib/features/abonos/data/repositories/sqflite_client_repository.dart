@@ -5,7 +5,7 @@ import 'package:abonos_app/features/abonos/domain/repositories/client_repository
 
 class SqfliteClientRepository implements ClientRepository {
   SqfliteClientRepository({AppDatabase? database})
-      : _database = database ?? AppDatabase.instance;
+    : _database = database ?? AppDatabase.instance;
 
   final AppDatabase _database;
 
@@ -13,9 +13,9 @@ class SqfliteClientRepository implements ClientRepository {
   Future<List<Client>> getAll({bool includeDeleted = false}) async {
     final db = await _database.database;
     final rows = await db.query(
-      'clients',
+      'clientes',
       where: includeDeleted ? null : 'deleted_at IS NULL',
-      orderBy: 'created_at DESC',
+      orderBy: 'nombre COLLATE NOCASE ASC',
     );
 
     return rows.map(ClientModel.fromMap).toList();
@@ -25,7 +25,7 @@ class SqfliteClientRepository implements ClientRepository {
   Future<Client?> getById(String id) async {
     final db = await _database.database;
     final rows = await db.query(
-      'clients',
+      'clientes',
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [id],
       limit: 1,
@@ -45,11 +45,13 @@ class SqfliteClientRepository implements ClientRepository {
     final model = ClientModel(
       id: client.id,
       name: client.name,
+      prestamoActivo: client.prestamoActivo,
+      communityId: client.communityId,
       createdAt: now,
       updatedAt: now,
     );
 
-    await db.insert('clients', model.toMap());
+    await db.insert('clientes', model.toMap());
   }
 
   @override
@@ -58,13 +60,15 @@ class SqfliteClientRepository implements ClientRepository {
     final model = ClientModel(
       id: client.id,
       name: client.name,
+      prestamoActivo: client.prestamoActivo,
+      communityId: client.communityId,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
       deletedAt: client.deletedAt,
     );
 
     await db.update(
-      'clients',
+      'clientes',
       model.toMap(),
       where: 'id = ?',
       whereArgs: [client.id],
@@ -77,11 +81,8 @@ class SqfliteClientRepository implements ClientRepository {
     final now = DateTime.now().toIso8601String();
 
     await db.update(
-      'clients',
-      {
-        'deleted_at': now,
-        'updated_at': now,
-      },
+      'clientes',
+      {'deleted_at': now, 'updated_at': now},
       where: 'id = ?',
       whereArgs: [id],
     );
